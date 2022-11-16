@@ -45,19 +45,17 @@ public class PingPongRttApplication {
                         .timeNano(System.nanoTime()).build();
                 String strPacote = new ObjectMapper().writeValueAsString(pacote);
 
-                DataOutputStream outToServer = new DataOutputStream(socket
-                        .getOutputStream());
+                socket.getOutputStream().write(strPacote.getBytes(StandartCharsets.UTF_8));
+                socket.getOutputStream().flush();
 
                 System.out.println("Ping enviado");
 
-                BufferedReader inFromServer = new BufferedReader(new InputStreamReader(
-                        socket.getInputStream()));
+                byte[] buffer = new byte[1024];
+                int size = socket.getInputStream().read(buffer);
+                String strRetorno = new String(buffer, 0, size);
 
-                outToServer.writeBytes(pacote.getTimeNano().toString());
-
-                tempoServidor = inFromServer.readLine();
-
-                long timeNano = System.nanoTime() - Long.parseLong(tempoServidor);
+                Pacote pacoteRetorno = new ObjectMapper().readValue(strRetorno, Pacote.class);
+                long timeNano = System.nanoTime() - pacoteRetorno.getTimestampNanos();
                 System.out.println("RTT de "+ timeNano + "ns");
 
                 socket.close();
@@ -70,28 +68,23 @@ public class PingPongRttApplication {
         public void run() {
 
             String tempoCliente;
-            ServerSocket welcomeSocket = new ServerSocket(5555);
-
-            Socket connectionSocket = welcomeSocket.accept();
+            ServerSocket ss = new ServerSocket(5555);
 
             while (true) {
-                BufferedReader inFromClient = new BufferedReader(
-                        new InputStreamReader(
-                                connectionSocket.getInputStream()
-                        )
-                );
-                DataOutputStream outToClient = new DataOutputStream(
-                        connectionSocket.getOutputStream()
-                );
 
-                tempoCliente = inFromClient.readLine();
+                Socket socket = ss.accept();
 
-                Date data = new Date();
-                tempoCliente = data.toString();
+                byte[] buffer = new byte[1024];
+                int size = socket.getInputStream().read(buffer);
 
-                System.out.println("Pong devolvido");
-                outToClient.writeBytes(tempoCliente);
-                // connectionSocket.close();
+                Pacote pacote = new ObjectMapper().readValue(new String(buffer, 0, size), Pacote.class);
+
+                System.out.println("Recebeu pacote" + pacote);
+
+                if (pacote.getTipo() == Pacote.Tipo.PING) {
+                    socket.getOutputStream().write(buffer, 0, size);
+                }
+                socket.close();
             }
         }
     }
